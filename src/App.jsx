@@ -26,6 +26,35 @@ const SENSOR_DATA = {
   "Tilt Angle": { unit: "°", threshold: 8, current: 9.7, series: generateTimeSeries(4, 8) },
 };
 
+const getDateDaysAgo = (daysAgo) => {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+// DEMO DATA: two consecutive days for testing.
+// Replace these values with real daily sensor history later.
+const DAILY_SENSOR_HISTORY = [
+  {
+    date: getDateDaysAgo(2),
+    zone: "Nilgiris Zone A",
+    moisture: 80.5,
+    rainfall: 58.2,
+  },
+  {
+    date: getDateDaysAgo(1),
+    zone: "Nilgiris Zone A",
+    moisture: 82.1,
+    rainfall: 62.3,
+  },
+];
+
+
 const ALERTS = [
   { id: 1, time: "09:14", zone: "Nilgiris - Zone A", type: "critical", msg: "GPS displacement exceeded 15mm threshold. Immediate evacuation recommended.", sensor: "GPS Displacement" },
   { id: 2, time: "08:52", zone: "Nilgiris - Zone A", type: "critical", msg: "Rainfall rate 62.3 mm/hr — 24% above critical threshold.", sensor: "Rainfall" },
@@ -70,6 +99,68 @@ const C = {
 const statusColor  = (s) => ({ critical: C.critical, warning: C.warning, safe: C.safe, info: C.info }[s] || C.info);
 const statusBg     = (s) => ({ critical: C.criticalBg, warning: C.warningBg, safe: C.safeBg, info: C.infoBg }[s] || C.infoBg);
 const statusBorder = (s) => ({ critical: C.criticalBorder, warning: C.warningBorder, safe: C.safeBorder, info: C.infoBorder }[s] || C.infoBorder);
+
+const MOISTURE_THRESHOLD = 75;
+const RAINFALL_THRESHOLD = 50;
+
+function getInspectionAlerts(history) {
+  const zones = [...new Set(history.map((day) => day.zone))];
+  const alerts = [];
+
+  zones.forEach((zone) => {
+    const days = history
+      .filter((day) => day.zone === zone)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 2);
+
+    if (days.length !== 2) return;
+
+    const latestDate = new Date(`${days[0].date}T00:00:00Z`);
+    const previousDate = new Date(`${days[1].date}T00:00:00Z`);
+
+    const difference =
+      (latestDate.getTime() - previousDate.getTime()) / 86400000;
+
+    if (difference !== 1) return;
+
+    const [latest, previous] = days;
+
+    if (
+      latest.moisture > MOISTURE_THRESHOLD &&
+      previous.moisture > MOISTURE_THRESHOLD
+    ) {
+      alerts.push({
+        id: `${zone}-moisture`,
+        zone,
+        sensor: "Soil Moisture",
+        value: latest.moisture,
+        threshold: MOISTURE_THRESHOLD,
+        unit: "%",
+        message: "Soil moisture exceeded its threshold for two consecutive days.",
+      });
+    }
+
+    if (
+      latest.rainfall > RAINFALL_THRESHOLD &&
+      previous.rainfall > RAINFALL_THRESHOLD
+    ) {
+      alerts.push({
+        id: `${zone}-rainfall`,
+        zone,
+        sensor: "Rainfall",
+        value: latest.rainfall,
+        threshold: RAINFALL_THRESHOLD,
+        unit: "mm/hr",
+        message: "Rainfall exceeded its threshold for two consecutive days.",
+      });
+    }
+  });
+
+  return alerts;
+}
+
+const INSPECTION_ALERTS = getInspectionAlerts(DAILY_SENSOR_HISTORY);
+
 
 // ─── Shared Sub-components ────────────────────────────────────────────────────
 function MiniBar({ series, threshold, color }) {
@@ -160,6 +251,53 @@ function Dashboard({ showBanner, setShowBanner }) {
   return (
     <div>
       {showBanner && <AlertBanner onDismiss={() => setShowBanner(false)} />}
+      
+
+<div
+  style={{
+    border: "1px solid #D97706",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    background: "var(--color-background-primary)",
+  }}
+>
+  <h3 style={{ marginTop: 0 }}>Field Inspection Alerts</h3>
+
+  {INSPECTION_ALERTS.length === 0 ? (
+    <p>No two-day threshold violations detected.</p>
+  ) : (
+    INSPECTION_ALERTS.map((alert) => (
+      <div
+        key={alert.id}
+        style={{
+          padding: 12,
+          marginBottom: 10,
+          borderRadius: 8,
+          background: "var(--color-background-secondary)",
+        }}
+      >
+        <strong style={{ color: "#B45309" }}>
+          ⚠️ {alert.sensor} — Inspection Required
+        </strong>
+
+        <p>Zone: {alert.zone}</p>
+        <p>{alert.message}</p>
+
+        <p>
+          Latest reading: {alert.value} {alert.unit}
+          {" | "}
+          Threshold: {alert.threshold} {alert.unit}
+        </p>
+
+        <p>Recommended action: Arrange a field inspection.</p>
+      </div>
+    ))
+  )}
+</div>
+
+
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: "1.5rem" }}>
         {[
           { label: "Active Nodes", val: "5", sub: "All transmitting" },
