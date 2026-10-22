@@ -26,6 +26,35 @@ const SENSOR_DATA = {
   "Tilt Angle": { unit: "°", threshold: 8, current: 9.7, series: generateTimeSeries(4, 8) },
 };
 
+const getDateDaysAgo = (daysAgo) => {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+// DEMO DATA: two consecutive days for testing.
+// Replace these values with real daily sensor history later.
+const DAILY_SENSOR_HISTORY = [
+  {
+    date: getDateDaysAgo(2),
+    zone: "Nilgiris Zone A",
+    moisture: 80.5,
+    rainfall: 58.2,
+  },
+  {
+    date: getDateDaysAgo(1),
+    zone: "Nilgiris Zone A",
+    moisture: 82.1,
+    rainfall: 62.3,
+  },
+];
+
+
 const ALERTS = [
   { id: 1, time: "09:14", zone: "Nilgiris - Zone A", type: "critical", msg: "GPS displacement exceeded 15mm threshold. Immediate evacuation recommended.", sensor: "GPS Displacement" },
   { id: 2, time: "08:52", zone: "Nilgiris - Zone A", type: "critical", msg: "Rainfall rate 62.3 mm/hr — 24% above critical threshold.", sensor: "Rainfall" },
@@ -160,6 +189,48 @@ function Dashboard({ showBanner, setShowBanner }) {
   return (
     <div>
       {showBanner && <AlertBanner onDismiss={() => setShowBanner(false)} />}
+      
+<div
+  style={{
+    border: "1px solid #D97706",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    background: "var(--color-background-primary)",
+  }}
+>
+  <h3 style={{ marginTop: 0 }}>Field Inspection Alerts</h3>
+
+  {INSPECTION_ALERTS.length === 0 ? (
+    <p>No two-day threshold violations detected.</p>
+  ) : (
+    INSPECTION_ALERTS.map((alert) => (
+      <div
+        key={alert.id}
+        style={{
+          padding: 12,
+          marginBottom: 10,
+          borderRadius: 8,
+          background: "var(--color-background-secondary)",
+        }}
+      >
+        <strong style={{ color: "#B45309" }}>
+          ⚠️ {alert.sensor} — Inspection Required
+        </strong>
+        <p>Zone: {alert.zone}</p>
+        <p>{alert.message}</p>
+        <p>
+          Latest reading: {alert.value} {alert.unit}
+          {" | "}
+          Threshold: {alert.threshold} {alert.unit}
+        </p>
+        <p>Recommended action: Arrange a field inspection.</p>
+      </div>
+    ))
+  )}
+</div>
+
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: "1.5rem" }}>
         {[
           { label: "Active Nodes", val: "5", sub: "All transmitting" },
