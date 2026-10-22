@@ -71,6 +71,70 @@ const statusColor  = (s) => ({ critical: C.critical, warning: C.warning, safe: C
 const statusBg     = (s) => ({ critical: C.criticalBg, warning: C.warningBg, safe: C.safeBg, info: C.infoBg }[s] || C.infoBg);
 const statusBorder = (s) => ({ critical: C.criticalBorder, warning: C.warningBorder, safe: C.safeBorder, info: C.infoBorder }[s] || C.infoBorder);
 
+const MOISTURE_THRESHOLD = 75;
+const RAINFALL_THRESHOLD = 50;
+
+function getInspectionAlerts(history) {
+  const zones = [...new Set(history.map((day) => day.zone))];
+  const alerts = [];
+
+  zones.forEach((zone) => {
+    const days = history
+      .filter((day) => day.zone === zone)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 2);
+
+    if (days.length !== 2) return;
+
+    const latestDate = new Date(`${days[0].date}T00:00:00Z`);
+    const previousDate = new Date(`${days[1].date}T00:00:00Z`);
+
+    const difference =
+      (latestDate.getTime() - previousDate.getTime()) / 86400000;
+
+    if (difference !== 1) return;
+
+    const [latest, previous] = days;
+
+    if (
+      latest.moisture > MOISTURE_THRESHOLD &&
+      previous.moisture > MOISTURE_THRESHOLD
+    ) {
+      alerts.push({
+        id: `${zone}-moisture`,
+        zone,
+        sensor: "Soil Moisture",
+        value: latest.moisture,
+        threshold: MOISTURE_THRESHOLD,
+        unit: "%",
+        message:
+          "Soil moisture exceeded its threshold for two consecutive days.",
+      });
+    }
+
+    if (
+      latest.rainfall > RAINFALL_THRESHOLD &&
+      previous.rainfall > RAINFALL_THRESHOLD
+    ) {
+      alerts.push({
+        id: `${zone}-rainfall`,
+        zone,
+        sensor: "Rainfall",
+        value: latest.rainfall,
+        threshold: RAINFALL_THRESHOLD,
+        unit: "mm/hr",
+        message:
+          "Rainfall exceeded its threshold for two consecutive days.",
+      });
+    }
+  });
+
+  return alerts;
+}
+
+const INSPECTION_ALERTS = getInspectionAlerts(DAILY_SENSOR_HISTORY);
+
+
 // ─── Shared Sub-components ────────────────────────────────────────────────────
 function MiniBar({ series, threshold, color }) {
   const max = Math.max(...series.map((s) => s.value), threshold * 1.2);
