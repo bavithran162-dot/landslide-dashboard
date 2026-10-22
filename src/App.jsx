@@ -184,6 +184,65 @@ function ForecastWidget() {
   );
 }
 
+const MOISTURE_THRESHOLD = 75;
+const RAINFALL_THRESHOLD = 50;
+
+function getInspectionAlerts(history) {
+  const zones = [...new Set(history.map((item) => item.zone))];
+  const alerts = [];
+
+  for (const zone of zones) {
+    const days = history
+      .filter((item) => item.zone === zone)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 2);
+
+    if (days.length !== 2) continue;
+
+    const newer = new Date(`${days[0].date}T00:00:00Z`);
+    const older = new Date(`${days[1].date}T00:00:00Z`);
+
+    if (newer.getTime() - older.getTime() !== 86400000) continue;
+
+    const [latest, previous] = days;
+
+    if (
+      latest.moisture > MOISTURE_THRESHOLD &&
+      previous.moisture > MOISTURE_THRESHOLD
+    ) {
+      alerts.push({
+        id: `${zone}-moisture`,
+        zone,
+        sensor: "Soil Moisture",
+        value: latest.moisture,
+        threshold: MOISTURE_THRESHOLD,
+        unit: "%",
+        message: "Moisture exceeded its threshold for two consecutive days.",
+      });
+    }
+
+    if (
+      latest.rainfall > RAINFALL_THRESHOLD &&
+      previous.rainfall > RAINFALL_THRESHOLD
+    ) {
+      alerts.push({
+        id: `${zone}-rainfall`,
+        zone,
+        sensor: "Rainfall",
+        value: latest.rainfall,
+        threshold: RAINFALL_THRESHOLD,
+        unit: "mm/hr",
+        message: "Rainfall exceeded its threshold for two consecutive days.",
+      });
+    }
+  }
+
+  return alerts;
+}
+
+const INSPECTION_ALERTS = getInspectionAlerts(DAILY_SENSOR_HISTORY);
+
+
 // ─── Section Views ────────────────────────────────────────────────────────────
 function Dashboard({ showBanner, setShowBanner }) {
   return (
